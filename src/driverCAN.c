@@ -22,3 +22,11 @@ void CAN_incoda(CAN_Messaggio msg) {//prende un msg di tipo CAn_Messaggio e lo i
         tail(tail+1)%CAN_QUEUE_SIZE;//incrementa tail, eliminando il messaggio più vecchio (e fa spazio a quello nuovo)
     }
 }
+
+void CAN_InviaMess(uint32_t id, uint8_t *data, uint8_t length) {
+    CAN_Messaggio msg;
+    msg.id = id;
+    memcpy(msg.data, data, length);
+    msg.len = length;
+    CAN_incoda(msg);
+}

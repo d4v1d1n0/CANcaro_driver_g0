@@ -38,6 +38,15 @@ void CAN_init(void);
  */
 void CAN_Incoda(CAN_Messaggio msg);
 CAN_Messaggio CAN_toglicoda(void);
+/**
+ * @brief Invia un messaggio CAN.
+ *
+ * Aggiunge un messaggio CAN alla coda di trasmissione.
+ *
+ * @param id     Identificatore del messaggio (ID standard, 11 bit).
+ * @param data   Puntatore al payload dei dati.
+ * @param length Lunghezza del payload in byte (max 8 byte).
+ */
 void CAN_InviaMess();
 void CAN_RiceviMess();
 void CAN_CheckFIfio();
