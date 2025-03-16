@@ -14,3 +14,6 @@ typedef struct {
 void CAN_incoda(CAN_Messaggio msg);
 CAN_Messaggio CAN_toglicoda(void);
 void CAN_init(void);
+void CAN_InviaMess();
+void CAN_RiceviMess();
+void CAN_
