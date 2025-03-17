@@ -109,6 +109,20 @@ void CAN_CheckFIfio(void){
     }
 }
 
+// Callback degli interrupt
+void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs) {
+    if (RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) {
+        CAN_CheckFifoStatus();
+    }
+}
+
+void HAL_FDCAN_TxEventFifoCallback(FDCAN_HandleTypeDef *hfdcan, uint32_t TxEventFifoITs) {
+    if (TxEventFifoITs & FDCAN_IT_TX_COMPLETE) {
+        uint8_t newMessage[] = {0x00, 0x00, 0x00, 0x00};
+        CAN_SendMessage(0x124, newMessage, sizeof(newMessage));
+    }
+}
+
 void Errori(void){
     uint8_t errorMsg[8]={'e','r','r','o','r',0x00,0x00,0x00};
     CAN_InviaMess(ERROR_CAN_ID, errorMsg, size(errorMsg))
