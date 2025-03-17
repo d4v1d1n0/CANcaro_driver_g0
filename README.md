@@ -47,10 +47,4 @@ Implementata per evitare la perdita di messaggi quando ne arrivano più di quant
 - Dimensione di ogni messaggio: 16 byte.
 - Memoria totale utilizzata: 512 byte.
 
-### 6. Scelte di Design
-- **Bitrate**: Configurato a 500 kbps.
-- **Filtri**: Accetta solo messaggi con ID 0x123 per ridurre il carico.
-- **Gestione della RAM**: La coda circolare da 32 messaggi occupa solo 512 byte, perfetta per le risorse limitate dello STM32G0.
-- **Sicurezza**: Utilizzo di interrupt per la gestione asincrona dei messaggi.
-
 ---
