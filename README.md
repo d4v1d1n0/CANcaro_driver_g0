@@ -1,8 +1,5 @@
 ## Struttura del Progetto
 
-### File Principale
-- **fdcan_driver.c**: Contiene l'implementazione delle funzioni principali per la gestione del CAN.
-
 ### Librerie Utilizzate
 - `stm32g0xx_hal.h`
 - `stm32g0xx_hal_fdcan.h`
@@ -29,13 +26,13 @@ I dati per questi calcoli sono inseriti all'interno del programma con i seguenti
 - Abilita il modulo CAN e configura le priorità degli interrupt NVIC.
 
 ### 2. Invio di Messaggi CAN
-La funzione `CAN_SendMessage` permette di:
+La funzione `CAN_InviaMess` permette di:
 - Inviare messaggi con ID standard a 11 bit.
 - Supportare messaggi con una lunghezza massima di 8 byte.
 - Utilizzare la coda di trasmissione interna.
 
 ### 3. Ricezione di Messaggi CAN
-La funzione `CAN_ReceiveMessage`:
+La funzione `CAN_RiceviMess`:
 - Legge i messaggi ricevuti dalla FIFO e li salva in una coda circolare implementata manualmente.
 - La coda ha una dimensione di 32 messaggi, con gestione degli overflow tramite sovrascrittura del messaggio più vecchio.
 
