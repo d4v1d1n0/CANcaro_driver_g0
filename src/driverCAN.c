@@ -123,6 +123,11 @@ void HAL_FDCAN_TxEventFifoCallback(FDCAN_HandleTypeDef *hfdcan, uint32_t TxEvent
     }
 }
 
+// Interrupt handler
+void FDCAN1_IT0_IRQHandler(void) {
+    HAL_FDCAN_IRQHandler(&hfdcan1);
+}
+
 void Errori(void){
     uint8_t errorMsg[8]={'e','r','r','o','r',0x00,0x00,0x00};
     CAN_InviaMess(ERROR_CAN_ID, errorMsg, size(errorMsg))
