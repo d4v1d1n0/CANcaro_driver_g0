@@ -1,87 +1,34 @@
-#ifndef DRIVERCAN_H
-#define DRIVERCAN_H
+#ifndef FDCAN_DRIVER_REGISTERS_H
+#define FDCAN_DRIVER_REGISTERS_H
 
+#include "stm32g0xx.h"
 #include <stdint.h>
 
-#define CAN_QUEUE_SIZE 32
+/**
+ * @brief Inizializza il modulo FDCAN usando l'accesso diretto ai registri.
+ *
+ * Configura il clock, i pin GPIOA (PA11/PA12), imposta il baud rate a 500 kbps,
+ * abilita i filtri per ricevere tutti i messaggi standard e avvia il modulo FDCAN1.
+ */
+void CAN_Init(void);
 
 /**
- * @brief Struttura che rappresenta un messaggio CAN
+ * @brief Invia un messaggio CAN con ID standard.
+ *
+ * @param id     ID del messaggio (11 bit standard).
+ * @param data   Puntatore ai dati (max 8 byte).
+ * @param length Lunghezza del payload in byte (0-8).
  */
-typedef struct {
-    uint32_t id;        /** identificatore del messaggio CAN */
-    uint8_t data[8];    /** Payload del messaggio CAN */
-    uint8_t len;        /** lunghezza in byte del payload */
-} CAN_Messaggio;
+void CAN_SendMessage(uint32_t id, uint8_t *data, uint8_t length);
 
 /**
- * @brief Inizializza la periferica FDCAN.
+ * @brief Riceve un messaggio CAN dalla FIFO0, se disponibile.
  *
- * Configura il bus CAN a 500 kbps, imposta i filtri, abilita gli interrupt,
- * e configura i pin GPIO PA11 (RX) e PA12 (TX) per FDCAN1
- *
- * Questa funzione deve essere chiamata prima di inviare o ricevere messaggi
+ * @param id     Puntatore per ricevere l'ID del messaggio.
+ * @param data   Buffer per i dati ricevuti (minimo 8 byte).
+ * @param length Puntatore per ricevere la lunghezza del messaggio.
+ * @return int   1 se un messaggio è stato ricevuto, 0 altrimenti.
  */
-void CAN_init(void);
-/**
- * @brief Inserisce un messaggio nella coda circolare CAN.
- *
- * Questa funzione prende un messaggio di tipo `CAN_Messaggio` e lo inserisce
- * nella coda circolare `canCoda`. Se la coda è piena, il messaggio più vecchio
- * viene sovrascritto
- *
- * @param msg Il messaggio CAN da inserire nella coda
- *
- * @note La coda ha una dimensione massima definita da `CAN_QUEUE_SIZE`. Se la coda
- *       è piena, il puntatore `tail` viene incrementato per eliminare il messaggio
- *       più vecchio e fare spazio a quello nuovo
- */
-void CAN_Incoda(CAN_Messaggio msg);
-/**
- * @brief Estrae un messaggio dalla coda di ricezione
- *
- * Recupera il messaggio più vecchio ricevuto dal buffer circolare
- *
- * @return CAN_Messaggio Il messaggio estratto
- */
-CAN_Messaggio CAN_toglicoda(void);
-/**
- * @brief Invia un messaggio CAN.
- *
- * Aggiunge un messaggio CAN alla coda di trasmissione
- *
- * @param id     Identificatore del messaggio (ID standard, 11 bit)
- * @param data   Puntatore al payload dei dati
- * @param length Lunghezza del payload in byte (max 8 byte)
- */
-void CAN_InviaMess(uint32_t id, uint8_t *data, uint8_t length);
-/**
- * @brief Riceve un messaggio CAN.
- *
- * Questa funzione riceve un messaggio CAN dalla periferica FDCAN.
- */
-void CAN_RiceviMess(void);
-/**
- * @brief Controlla lo stato FIFO e processa i messaggi in arrivo.
- *
- * Legge tutti i messaggi disponibili dal FIFO RX e li inserisce in coda per l'elaborazione.
- */
-void CAN_CheckFIfio(void);
-/**
- * @brief Elabora i messaggi CAN ricevuti
- *
- * Questa è una funzione implementata dall'utente per gestire i messaggi in arrivo
- *
- * @param id     Identificatore del messaggio ricevuto
- * @param data   Puntatore al payload del messaggio
- * @param length Lunghezza del payload in byte
- */
-void ElaboraMsgRicevuto(uint32_t id, uint8_t *data, uint8_t length);
-/**
- * @brief Gestisce gli errori di comunicazione CAN
- * 
- * Questa funzione è chiamata in caso di errore di comunicazione CAN
- */
-void Errori(void);
+int CAN_ReceiveMessage(uint32_t *id, uint8_t *data, uint8_t *length);
 
-#endif
+#endif // FDCAN_DRIVER_REGISTERS_H

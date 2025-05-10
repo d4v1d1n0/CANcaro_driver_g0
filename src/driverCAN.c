@@ -1,135 +1,77 @@
-#include "stm32g0xx_hal.h"
-#include "stm32g0xx_hal_fdcan.h"
-#include <string.h>
+#include "stm32g0xx.h"
 #include "driverCAN.h"
 
-#define CAN_QUEUE_SIZE 32
-#define ERROR_CAN_ID 0x7FF 
+// Inizializzazione CAN tramite registri
+void CAN_Init(void) {
+    // Abilita il clock del modulo FDCAN e dei GPIO
+    RCC->APBENR1 |= RCC_APBENR1_FDCANEN;  // Abilita il clock per il modulo FDCAN
+    RCC->IOPENR |= RCC_IOPENR_GPIOAEN;    // Abilita il clock per GPIOA
 
-typedef struct {
-    uint32_t id;
-    uint8_t data[8];
-    uint8_t len;
-} CAN_Messaggio;
+    // Configura PA11 (RX) e PA12 (TX) come alternate function (AF9)
+    GPIOA->MODER &= ~(GPIO_MODER_MODE11_Msk | GPIO_MODER_MODE12_Msk);
+    GPIOA->MODER |= (2 << GPIO_MODER_MODE11_Pos) | (2 << GPIO_MODER_MODE12_Pos);
+    GPIOA->AFR[1] |= (9 << GPIO_AFRH_AFSEL11_Pos) | (9 << GPIO_AFRH_AFSEL12_Pos);
 
-CAN_Messaggio canCoda[CAN_QUEUE_SIZE];
-uint8_t head = 0;
-uint8_t tail = 0;
+    // Entra in modalità di inizializzazione (CCCR - Control Register)
+    FDCAN1->CCCR |= FDCAN_CCCR_INIT;
+    while (!(FDCAN1->CCCR & FDCAN_CCCR_INIT)) {}  // Attendi che entri in modalità INIT
 
-void CAN_Incoda(CAN_Messaggio msg) {//prende un msg di tipo CAn_Messaggio e lo inserisce in una coda circolare (canCoda)
-    canCoda[head]=msg;              //copia il msg nella posiione attuale, quindi in head
-    head=(head+1)%CAN_QUEUE_SIZE;   //incrementa head, e nel caso raggiunga il limite della coda, lo riporta a 0 (%=divisione con resto 0)
-    if(head==tail){                 //controllo overflow (per preparare la sovrascrittura)
-        tail(tail+1)%CAN_QUEUE_SIZE;//incrementa tail, eliminando il messaggio più vecchio (e fa spazio a quello nuovo)
-    }
+    // Abilita la configurazione (CCCR - CCE bit)
+    FDCAN1->CCCR |= FDCAN_CCCR_CCE;
+
+    // Configura velocità a 500 kbps (NBTP - Nominal Bit Timing and Prescaler)
+    // CAN clock = 48 MHz, Prescaler = 6, TimeSeg1 = 13, TimeSeg2 = 2, SyncJumpWidth = 1
+    FDCAN1->NBTP = (6 - 1) << FDCAN_NBTP_NBRP_Pos |
+                    (13 - 1) << FDCAN_NBTP_NTSEG1_Pos |
+                    (2 - 1) << FDCAN_NBTP_NTSEG2_Pos |
+                    (1 - 1) << FDCAN_NBTP_NSJW_Pos;
+
+    // Accetta tutti i messaggi nella RX FIFO 0 (RXGFC - Global Filter Configuration)
+    FDCAN1->RXGFC = (0x2 << FDCAN_RXGFC_ANFE_Pos) | (0x2 << FDCAN_RXGFC_ANFS_Pos);
+
+    // Esci dalla modalità di inizializzazione
+    FDCAN1->CCCR &= ~FDCAN_CCCR_INIT;
+    while (FDCAN1->CCCR & FDCAN_CCCR_INIT) {}  // Attendi che esca dalla modalità INIT
 }
 
-CAN_Messaggio CAN_toglicoda(void){
-    CAN_Messaggio msg=canCoda[tail];    //copia il messaggio in tail in msg
-    tail=(tail+1)%CAN_QUEUE_SIZE;       //incrementa tail, e nel caso raggiunga il limite della coda, lo riporta a 0 (%=divisione con resto 0)
-    return msg;                         //ritorna il messaggio
-}
+// Invia un messaggio CAN
+void CAN_SendMessage(uint32_t id, uint8_t *data, uint8_t length) {
+    // Controlla se c'è un buffer di trasmissione libero (TXFQS - Transmit FIFO/Queue Status)
+    uint32_t freeLevel = (FDCAN1->TXFQS & FDCAN_TXFQS_TFQF) == 0;
+    if (!freeLevel) return;  // Nessun buffer libero
 
-void CAN_InviaMess(uint32_t id, uint8_t *data, uint8_t length) {
-    CAN_Messaggio msg;
-    msg.id = id;
-    memcpy(msg.data, data, length);
-    msg.len = length;
-    CAN_Incoda(msg);
-}
+    // Imposta ID e lunghezza del messaggio
+    FDCAN1->TXBAR = 0x1;  // Richiedi trasmissione su Buffer 0
+    FDCAN1->TXBC |= (0x1 << 0);  // Seleziona Buffer 0
+    FDCAN1->TXF0S = (id << 18) & FDCAN_TXF0S_EFF;  // ID standard
+    FDCAN1->TXF0S |= (length & 0xF) << FDCAN_TXF0S_DLC_Pos;  // Lunghezza dati
 
-void CAN_init(void){
-    __HAL_RCC_FDCAN_CLK_ENABLE();
-    __HAL_RCC_GPIOA_CLK_ENABLE();
-    GPIO_InitTypeDef GPIO_InitStruct = {0};
-    GPIO_InitStruct.Pin = GPIO_PIN_11 | GPIO_PIN_12;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-    GPIO_InitStruct.Alternate = GPIO_AF9_FDCAN1;
-    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-    hfdcan1.Instance = FDCAN1;
-    hfdcan1.Init.ClockDivider = FDCAN_CLOCK_DIV1;
-    hfdcan1.Init.FrameFormat = FDCAN_FRAME_CLASSIC;
-    hfdcan1.Init.Mode = FDCAN_MODE_NORMAL;
-    hfdcan1.Init.AutoRetransmission = ENABLE;
-    hfdcan1.Init.TransmitPause = DISABLE;
-    hfdcan1.Init.ProtocolException = DISABLE;
-    hfdcan1.Init.NominalPrescaler = 6;
-    hfdcan1.Init.NominalSyncJumpWidth = 1;
-    hfdcan1.Init.NominalTimeSeg1 = 13;
-    hfdcan1.Init.NominalTimeSeg2 = 2;
-
-    if (HAL_FDCAN_Init(&hfdcan1) != HAL_OK) {
-        Errori();
+    // Scrive i dati nei registri di trasmissione
+    for (int i = 0; i < length; i++) {
+        *((volatile uint8_t*)&FDCAN1->TXBRP + i) = data[i];
     }
 
-    FDCAN_FilterTypeDef sFilterConfig;
-    sFilterConfig.IdType = FDCAN_STANDARD_ID;
-    sFilterConfig.FilterIndex = 0;
-    sFilterConfig.FilterType = FDCAN_FILTER_MASK;
-    sFilterConfig.FilterConfig = FDCAN_FILTER_TO_RXFIFO0;
-    sFilterConfig.FilterID1 = 0x123;
-    sFilterConfig.FilterID2 = 0x7FF;
-
-    if (HAL_FDCAN_ConfigFilter(&hfdcan1, &sFilterConfig) != HAL_OK) {
-        Erroi();
-    }
-
-    HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_RX_FIFO0_NEW_MESSAGE | FDCAN_IT_TX_COMPLETE, 0);
-
-    if (HAL_FDCAN_Start(&hfdcan1) != HAL_OK) {
-        Errori();
-    }
-
-    HAL_NVIC_SetPriority(FDCAN1_IT0_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(FDCAN1_IT0_IRQn);
+    // Richiede la trasmissione (TXBAR - Transmit Buffer Add Request)
+    FDCAN1->TXBAR = 0x1;
 }
 
-void CAN_RiceviMess(void) {
-    FDCAN_RxHeaderTypeDef RxHeader;
-    uint8_t RxData[8];
-
-    if (HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, RxData) == HAL_OK) {
-        CAN_Message msg;
-        msg.id = RxHeader.Identifier;
-        msg.length = RxHeader.DataLength >> 16;
-        memcpy(msg.data, RxData, msg.length);
-        CAN_Incoda(msg);
+// Ricevi un messaggio CAN
+int CAN_ReceiveMessage(uint32_t *id, uint8_t *data, uint8_t *length) {
+    // Controlla se ci sono messaggi nella FIFO 0 (RXF0S - Receive FIFO 0 Status)
+    if ((FDCAN1->RXF0S & FDCAN_RXF0S_F0FL_Msk) == 0) {
+        return 0;  // Nessun messaggio disponibile
     }
-}
 
-void CAN_CheckFIfio(void){
-    uint32_t fifoLevel = HAL_FDCAN_GetRxFifoFillLevel(&hfdcan1, FDCAN_RX_FIFO0);
-    if (fifoLevel > 0) {
-        for (uint32_t i = 0; i < fifoLevel; i++) {
-            CAN_RiceviMess();
-        }
+    // Legge ID e lunghezza
+    *id = (FDCAN1->RXF0S & FDCAN_RXF0S_EFF) >> 18;
+    *length = (FDCAN1->RXF0S & FDCAN_RXF0S_DLC_Msk) >> FDCAN_RXF0S_DLC_Pos;
+
+    // Legge i dati ricevuti
+    for (int i = 0; i < *length; i++) {
+        data[i] = *((volatile uint8_t*)&FDCAN1->RXF0S + i);
     }
-}
 
-// Callback degli interrupt
-void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs) {
-    if (RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) {
-        CAN_CheckFifoStatus();
-    }
-}
-
-void HAL_FDCAN_TxEventFifoCallback(FDCAN_HandleTypeDef *hfdcan, uint32_t TxEventFifoITs) {
-    if (TxEventFifoITs & FDCAN_IT_TX_COMPLETE) {
-        uint8_t newMessage[] = {0x00, 0x00, 0x00, 0x00};
-        CAN_SendMessage(0x124, newMessage, sizeof(newMessage));
-    }
-}
-
-// Interrupt handler
-void FDCAN1_IT0_IRQHandler(void) {
-    HAL_FDCAN_IRQHandler(&hfdcan1);
-}
-
-void Errori(void){
-    uint8_t errorMsg[8]={'e','r','r','o','r',0x00,0x00,0x00};
-    CAN_InviaMess(ERROR_CAN_ID, errorMsg, size(errorMsg))
-    while (1){};
+    // Conferma la ricezione (RXF0A - Receive FIFO 0 Acknowledge)
+    FDCAN1->RXF0A = (FDCAN1->RXF0A & FDCAN_RXF0A_F0AI_Msk) + 1;
+    return 1;  // Messaggio ricevuto
 }
