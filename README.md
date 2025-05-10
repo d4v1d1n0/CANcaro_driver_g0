@@ -1,50 +1,76 @@
-## Struttura del Progetto
+# STM32G0 FDCAN Driver (Accesso diretto ai registri)
 
-### Librerie Utilizzate
-- `stm32g0xx_hal.h`
-- `stm32g0xx_hal_fdcan.h`
-- `string.h` per la gestione dei buffer.
-
----
+Questo progetto fornisce un **driver minimale e portabile** per il modulo **FDCAN** degli **STM32G0** realizzato **esclusivamente tramite accesso diretto ai registri**, senza l'utilizzo della HAL o altre librerie STM32Cube.
 
 ## Funzionalità Implementate
 
-### 1. Inizializzazione del Modulo CAN
-La funzione `CAN_Init`:
-- Abilita il clock del modulo FDCAN.
-- Configura i parametri del bit timing per una velocità di 500 kbps. La configurazione è calcolata in base alla formula del `bit_timing`, ovvero:
-```math
-Bitrate=\dfrac{CAN\ Clock}{Prescaler\times\left(1+TimeSeg1+TimeSeg2\right)}
+* Inizializzazione del modulo FDCAN1
+* Configurazione parametrica dei pin TX e RX (porta, numero pin, alternate function)
+* Configurazione della velocità CAN (es. 500 kbps)
+* Invio di messaggi CAN standard (ID a 11 bit, fino a 8 byte)
+* Ricezione di messaggi CAN dalla FIFO 0
+
+## Struttura del Progetto
+
 ```
-I dati per questi calcoli sono inseriti all'interno del programma con i seguenti valori:
-`hfdcan1.Init.NominalPrescaler = 6;`
-`hfdcan1.Init.NominalTimeSeg1 = 13;`
-`hfdcan1.Init.NominalTimeSeg2 = 2;`
-`hfdcan1.Init.NominalSyncJumpWidth = 1;`
-- Imposta un filtro per accettare solo i messaggi con ID 0x123.
-- Attiva gli interrupt per nuovi messaggi ricevuti e completamento della trasmissione.
-- Abilita il modulo CAN e configura le priorità degli interrupt NVIC.
+├── driverCAN.h          // Header con le dichiarazioni e i commenti Doxygen
+├── driverCAN.c          // Implementazione del driver con registri puri
+├── main.c               // Esempio di utilizzo del driver
+├── README.md            // Questo file
+```
 
-### 2. Invio di Messaggi CAN
-La funzione `CAN_InviaMess` permette di:
-- Inviare messaggi con ID standard a 11 bit.
-- Supportare messaggi con una lunghezza massima di 8 byte.
-- Utilizzare la coda di trasmissione interna.
+## API Driver
 
-### 3. Ricezione di Messaggi CAN
-La funzione `CAN_RiceviMess`:
-- Legge i messaggi ricevuti dalla FIFO e li salva in una coda circolare implementata manualmente.
-- La coda ha una dimensione di 32 messaggi, con gestione degli overflow tramite sovrascrittura del messaggio più vecchio.
+### void CAN\_Init(GPIO\_TypeDef \*port, uint8\_t tx\_pin, uint8\_t rx\_pin, uint8\_t af, uint32\_t kbps)
 
-### 4. Gestione degli Interrupt
-- `HAL_FDCAN_RxFifo0Callback`: Viene richiamato quando un nuovo messaggio è disponibile nella FIFO. Controlla lo stato della FIFO e svuota tutti i messaggi presenti nella coda circolare.
-- `HAL_FDCAN_TxEventFifoCallback`: Richiamato al completamento di un invio.
-- `FDCAN1_IT0_IRQHandler`: Gestisce gli interrupt del modulo FDCAN.
+Inizializza il modulo FDCAN.
 
-### 5. Coda Circolare
-Implementata per evitare la perdita di messaggi quando ne arrivano più di quanti possano essere elaborati istantaneamente.
-- Dimensione: 32 messaggi.
-- Dimensione di ogni messaggio: 16 byte.
-- Memoria totale utilizzata: 512 byte.
+* `port`: GPIOA / GPIOB / GPIOC
+* `tx_pin`: Numero del pin TX (es. 12)
+* `rx_pin`: Numero del pin RX (es. 11)
+* `af`: Alternate function (tipicamente 9 per FDCAN1)
+* `kbps`: Baud rate (es. 500)
 
----
+### void CAN\_SendMessage(uint32\_t id, uint8\_t \*data, uint8\_t length)
+
+Invia un messaggio CAN standard con ID a 11 bit e payload fino a 8 byte.
+
+### int CAN\_ReceiveMessage(uint32\_t \*id, uint8\_t \*data, uint8\_t \*length)
+
+Riceve un messaggio CAN dalla FIFO0. Restituisce 1 se il messaggio è disponibile, 0 altrimenti.
+
+## Esempio
+
+```c
+#include "driverCAN.h"
+
+int main(void) {
+    CAN_Init(GPIOA, 12, 11, 9, 500);  // PA12 = TX, PA11 = RX, AF9, 500 kbps
+
+    uint8_t data_out[8] = {0xDE, 0xAD, 0xBE, 0xEF};
+    CAN_SendMessage(0x123, data_out, 4);
+
+    while (1) {
+        uint32_t id;
+        uint8_t data_in[8];
+        uint8_t len;
+
+        if (CAN_ReceiveMessage(&id, data_in, &len)) {
+            // Elabora il messaggio
+        }
+    }
+}
+```
+
+## Considerazioni Tecniche
+
+* Il driver accede direttamente ai registri del modulo FDCAN.
+* Supporta solo ID **standard (11 bit)** e **Classic CAN** (non FD).
+* Utilizza una singola entry in RX FIFO0 e TX buffer.
+* Progettato per **STM32G0** con clock FDCAN a 48 MHz.
+
+## 📜 Licenza
+
+MIT License - vedi file `LICENSE`
+
+
