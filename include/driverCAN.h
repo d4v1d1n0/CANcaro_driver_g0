@@ -1,16 +1,22 @@
-#ifndef FDCAN_DRIVER_REGISTERS_H
-#define FDCAN_DRIVER_REGISTERS_H
+#ifndef driverCAN_H
+#define driverCAN_H
 
 #include "stm32g0xx.h"
 #include <stdint.h>
 
 /**
- * @brief Inizializza il modulo FDCAN usando l'accesso diretto ai registri.
+ * @brief Inizializza il modulo CAN usando i registri.
  *
- * Configura il clock, i pin GPIOA (PA11/PA12), imposta il baud rate a 500 kbps,
- * abilita i filtri per ricevere tutti i messaggi standard e avvia il modulo FDCAN1.
+ * Configura i pin indicati per TX e RX, assegna l'alternate function, e imposta
+ * la velocità CAN in kbps. Supporta solo ID standard e ricezione FIFO0.
+ *
+ * @param port     Puntatore al GPIO (es. GPIOA)
+ * @param tx_pin   Numero del pin TX (es. 12)
+ * @param rx_pin   Numero del pin RX (es. 11)
+ * @param af       Alternate function da usare (tipicamente 9 per FDCAN)
+ * @param kbps     Velocità desiderata in kilobit al secondo (es. 500)
  */
-void CAN_Init(void);
+void CAN_Init(GPIO_TypeDef *port, uint8_t tx_pin, uint8_t rx_pin, uint8_t af, uint32_t kbps);
 
 /**
  * @brief Invia un messaggio CAN con ID standard.
@@ -31,4 +37,4 @@ void CAN_SendMessage(uint32_t id, uint8_t *data, uint8_t length);
  */
 int CAN_ReceiveMessage(uint32_t *id, uint8_t *data, uint8_t *length);
 
-#endif // FDCAN_DRIVER_REGISTERS_H
+#endif
